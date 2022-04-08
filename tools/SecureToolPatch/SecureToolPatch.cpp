@@ -5,11 +5,6 @@
 #include "dmstrtk.hpp"
 #include "dmflags.h"
 
-DEFINE_string(PNAME, "dmconfigserver.exe", "process name");
-DEFINE_int64(INDEX, 1, "index=1-255");
-DEFINE_int64(TIME, 3600, "TIME={second}");
-DEFINE_string(CONFIG, "cpuusagelow.json", "config name");
-
 #include "dmutil.h"
 #include "dmtimermodule.h"
 #include "dmsingleton.h"
@@ -44,80 +39,34 @@ public:
 
         if (NULL != m_execute)
         {
-            std::string strVSpathFmt =
-                R"({}:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\Team Tools\DiagnosticsHub\Collector)";
-            std::string strVSpath;
+            std::string strSecureToolPathFmt =
+                R"({}:\Users\{}\AppData\Roaming\VanDyke\Config\Sessions)";
+
+            std::string strUserName = getenv("username");
+            std::string strSecureToolPath;
 
             for (char a = 'C'; a <= 'Z'; a++)
             {
-                auto path = fmt::format(strVSpathFmt, a);
+                auto path = fmt::format(strSecureToolPathFmt, a, strUserName);
 
                 if (DMIsDirectory(path.c_str()))
                 {
-                    strVSpath = path;
+                    strSecureToolPath = path;
                     break;
                 }
             }
 
-            if (strVSpath.empty())
+            if (strSecureToolPath.empty())
             {
-                fmt::print("{} {}", "cann't find", strVSpathFmt);
+                fmt::print("{} {}", "cann't find", strSecureToolPathFmt);
                 return;
             }
 
-            std::string strCmd = fmt::format(R"(tasklist | find "{}" | {})",
-                                             FLAGS_PNAME, R"(awk "{ print $2 }")");
+            std::string strCmd = fmt::format(R"(sed -i "s/\"Filenames Always Use UTF8\"=00000000/\"Filenames Always Use UTF8\"=00000001/g" {}\*.ini)", strSecureToolPath);
             std::string strRet = m_execute->exec(strCmd);
 
-            if (strRet.empty())
-            {
-                fmt::print("{} {}", "cann't find", FLAGS_PNAME);
-                return;
-            }
-
-            auto PID = fmt::to_number(strRet);
-
-            auto env = getenv("path");
-            auto path = fmt::format("path={};{}", env, strVSpath);
-            putenv((char*)path.c_str());
-
-            std::string strVsp =
-                R"(VSDiagnostics {} {} /attach:{} /loadConfig:"{}")";
-            std::string strConfigVsp = DMGetRootPath() + PATH_DELIMITER_STR + FLAGS_CONFIG;
-            std::string strVspCmd = fmt::format(strVsp, "start", FLAGS_INDEX,PID,
-                                                strConfigVsp);
-            std::string strVspRet = m_execute->exec(strVspCmd);
-
-            SetTimer(eTimerID_STOP, FLAGS_TIME*1000);
+            fmt::print("Done");
         }
-
-        std::cout << "test start" << std::endl;
-
-        bool bBusy = false;
-
-        while (!m_bStop)
-        {
-            bBusy = false;
-
-            if (CDMTimerModule::Instance()->Run())
-            {
-                bBusy = true;
-            }
-
-            if (__Run())
-            {
-                bBusy = true;
-            }
-
-            if (!bBusy)
-            {
-                SleepMs(1);
-            }
-        }
-
-        DispatchVsp();
-
-        std::cout << "test stop" << std::endl;
     }
 
     virtual void Terminate()
@@ -137,28 +86,12 @@ public:
         case eTimerID_STOP:
         {
             KillTimer(qwIDEvent);
-            DispatchVsp();
             Stop();
         }
         break;
 
         default:
             break;
-        }
-    }
-
-    void DispatchVsp()
-    {
-        if (!m_bVsp)
-        {
-            std::string strVspStop =
-                R"(VSDiagnostics.exe {} {} /output:{})";
-            std::string strVspStopCmd = fmt::format(strVspStop, "stop", FLAGS_INDEX,
-                                                    DMGetRootPath() + PATH_DELIMITER_STR + FLAGS_PNAME + "." + fmt::to_string(
-                                                            FLAGS_INDEX) + ".diagsession");
-
-            std::string strVspStopRet = m_execute->exec(strVspStopCmd);
-            m_bVsp = true;
         }
     }
 
