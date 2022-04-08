@@ -62,8 +62,11 @@ public:
                 return;
             }
 
-            std::string strCmd = fmt::format(R"(sed -i "s/\"Filenames Always Use UTF8\"=00000000/\"Filenames Always Use UTF8\"=00000001/g" {}\*.ini)", strSecureToolPath);
+            std::string strCmd = fmt::format(R"(sed -i.bak "s/\"Filenames Always Use UTF8\"=00000000/\"Filenames Always Use UTF8\"=00000001/g" {}\*.ini)", strSecureToolPath);
             std::string strRet = m_execute->exec(strCmd);
+
+            std::string strCmd2 = fmt::format(R"(del /s /q {}\*.bak)", strSecureToolPath);
+            std::string strRet2 = m_execute->exec(strCmd2);
 
             fmt::print("Done");
         }
